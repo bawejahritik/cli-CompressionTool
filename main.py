@@ -1,3 +1,6 @@
+import click
+import sys
+
 class Node:
     def __init__(self, data = None) -> None:
         self.left = None
@@ -63,15 +66,6 @@ def build_huffman_tree(binary_table):
     return root
 
 
-text = "c" * 32
-text += ("d" * 42)
-text += ("e" * 120)
-text += ("k" * 7)
-text += ("l" * 42)
-text += ("m" * 24)
-text += ("u" * 37)
-text += ("z" * 2)
-
 def compression(text):
     freq = frequencies(text)
     root = create_huffman_tree(freq)
@@ -82,11 +76,8 @@ def compression(text):
 
     for c in text:
         res += binary_table[c]
-
-    print(len(res))
     msg_len = len(res)
     res = int(res, 2).to_bytes((len(res) + 7)//8, byteorder='big')
-    print(len(res))
     return res, binary_table, msg_len
 
 # {'e': '0', 'u': '100', 'd': '101', 'l': '110', 'c': '1110', 'z': '111100', 'k': '111101', 'm': '11111'}
@@ -110,11 +101,51 @@ def decompression(compressed, binary_table, msg_len):
         if not current.left and not current.right:
             res += current.val
             current = root
+    return res
 
-    print(res)
+# compressed, binary_table, msg_len = compression(text)
+# binary_table = sorted(binary_table.items(), key=lambda x:x[1])
+# print(binary_table)
 
-compressed, binary_table, msg_len = compression(text)
-binary_table = sorted(binary_table.items(), key=lambda x:x[1])
-print(binary_table)
+# decompression(compressed, binary_table, msg_len)
 
-decompression(compressed, binary_table, msg_len)
+@click.command()
+@click.argument('filename', nargs=-1, type=click.Path(exists=True))
+@click.option('-e', '--encode', 'encode', is_flag=True, help="To Compress the file")
+@click.option('-d', '--decode', 'decode', is_flag=True, help="To Decompress the file")
+def main(filename, encode, decode):
+    if not filename:
+        sys.stdout.write("Please provide the file to compress/decompress")
+        exit(1)
+
+    if encode:
+        lines = ""
+        with open(filename[0], "r", encoding="utf-8") as f:
+            data = f.readlines()
+            for line in data:
+                lines += line
+        
+        compressed, binary_table, msg_len = compression(lines)
+        binary_table = sorted(binary_table.items(), key=lambda x:x[1])
+
+        with open(filename[0]+".compressed", "wb") as f1:
+            f1.write(str(binary_table).encode())
+            f1.write(b'\n')
+            f1.write(str(msg_len).encode())
+            f1.write(b'\n')
+            f1.write(compressed)
+            
+    
+    if decode:
+        with open(filename[0], 'rb') as file:
+            binary_table = eval(file.readline().decode())
+            msg_len = int(file.readline().decode())
+            compressed = file.read()
+            # compressed = str(bin(int(compressed.hex(), 16))).replace('0b', '')
+            decompressed = decompression(compressed, binary_table, msg_len)
+            print("decom", decompressed)
+            with open(filename[0][:-11] + ".decompressed", 'w') as file:
+                file.write(decompressed)
+
+if __name__ == '__main__':
+    main()
